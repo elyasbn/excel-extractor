@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fa-IR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Filter</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>همااکسترکت</span>
+        </div>
+    </header>
+
+    <main>
+        <h1>استخراج کلیدواژه از فایل اکسل</h1>
+        <form id="filterForm" method="post" enctype="multipart/form-data">
+            <div class="progress-indicator">
+                <div class="step active" data-step="1">۱. آپلود فایل</div>
+                <div class="step" data-step="2">۲. بازبینی</div>
+                <div class="step" data-step="3">۳. دریافت</div>
+            </div>
+
+            <div class="form-step" id="step1">
+                <div class="form-group">
+                    <label for="file">فایل اکسل را انتخاب کنید:</label>
+                    <div class="file-upload-area" id="dropZone">
+                        <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                        <p>فایل خود را اینجا بکشید و رها کنید یا روی دکمه کلیک کنید</p>
+                        <i data-feather="upload-cloud"></i>
+                    </div>
+                    <small>فرمت‌های مجاز: xlsx و xls</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="keywords">کلیدواژه‌ها را وارد کنید:</label>
+                    <input type="text" id="keywords" name="keywords" required>
+                    <small>کلیدواژه‌ها را با کامای انگلیسی از هم جدا کنید</small>
+                </div>
+
+                <div class="navigation-buttons">
+                    <button type="button" class="btn btn-primary" id="submitStep1">
+                        <span>بازبینی</span>
+                        <i data-feather="arrow-left"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-step" id="step2" style="display: none;">
+                <div id="keywordPreview">
+                    <h3>درستی اطلاعات زیر را بررسی کنید</h3>
+                    <p>فایل انتخاب‌شده: <span id="selectedFileName"></span></p>
+                    <p>کلیدواژه‌ها:</p>
+                    <ul id="keywordList"></ul>
+                </div>
+                <div class="loading-bar-container" id="loadingBarContainer">
+                    <div class="loading-bar"></div>
+                </div>
+                <div class="navigation-buttons">
+                    <button type="button" class="btn btn-outline" id="backToStep1">
+                        <i data-feather="arrow-right"></i>
+                        <span>بازگشت</span>
+                    </button>
+                    <button type="button" class="btn btn-primary" id="submitStep2">
+                        <span>فیلتر کلیدواژه‌ها</span>
+                        <i data-feather="arrow-left"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-step" id="step3" style="display: none;">
+                <h2>نتیجه</h2>
+                <div id="filterResults"></div>
+                <div class="navigation-buttons">
+                    <button type="button" class="btn btn-outline" id="backToStep2">
+                        <i data-feather="arrow-right"></i>
+                        <span>بازگشت</span>
+                    </button>
+                    <button type="button" class="btn btn-primary" id="downloadResults">
+                        <span>دانلود</span>
+                        <i data-feather="download"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </main>
+
+    <footer>
+        <p>تهیه‌شده در: بلدم‌بلدم</p>
+    </footer>
+
+    <script>
+        feather.replace();
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('file');
+        const keywordsInput = document.getElementById('keywords');
+        const submitStep1 = document.getElementById('submitStep1');
+        const submitStep2 = document.getElementById('submitStep2');
+        const backToStep1 = document.getElementById('backToStep1');
+        const backToStep2 = document.getElementById('backToStep2');
+        const keywordPreview = document.getElementById('keywordPreview');
+        const filterResults = document.getElementById('filterResults');
+        const downloadResults = document.getElementById('downloadResults');
+        const steps = document.querySelectorAll('.step');
+        const formSteps = document.querySelectorAll('.form-step');
+        const loadingBarContainer = document.getElementById('loadingBarContainer');
+
+        function showStep(stepNumber) {
+            steps.forEach(step => step.classList.remove('active'));
+            steps[stepNumber - 1].classList.add('active');
+            formSteps.forEach(step => step.style.display = 'none');
+            document.getElementById(`step${stepNumber}`).style.display = 'block';
+        }
+
+        submitStep1.addEventListener('click', () => {
+            if (fileInput.files.length > 0 && keywordsInput.value.trim() !== '') {
+                const fileName = fileInput.files[0].name;
+                const keywords = keywordsInput.value.split(',').map(k => k.trim());
+                
+                document.getElementById('selectedFileName').textContent = fileName;
+                const keywordList = document.getElementById('keywordList');
+                keywordList.innerHTML = keywords.map(k => `<li>${k}</li>`).join('');
+                
+                showStep(2);
+            } else {
+                alert('Please select a file and enter keywords.');
+            }
+        });
+
+        submitStep2.addEventListener('click', async () => {
+            const formData = new FormData(document.getElementById('filterForm'));
+            formData.append('action', 'filter');
+            try {
+                loadingBarContainer.style.display = 'block';
+                submitStep2.disabled = true;
+                backToStep1.disabled = true;
+
+                const response = await fetch('/', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                filterResults.innerHTML = `<p>تعداد سطرهای یافت‌شده: ${result.filtered_rows}</p>`;
+                showStep(3);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while filtering. Please try again.');
+            } finally {
+                loadingBarContainer.style.display = 'none';
+                submitStep2.disabled = false;
+                backToStep1.disabled = false;
+            }
+        });
+
+        downloadResults.addEventListener('click', async () => {
+            const formData = new FormData(document.getElementById('filterForm'));
+            formData.append('action', 'download');
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = downloadUrl;
+                    a.download = 'filtered_data.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(downloadUrl);
+                } else {
+                    throw new Error('Download failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while downloading. Please try again.');
+            }
+        });
+
+        backToStep1.addEventListener('click', () => showStep(1));
+        backToStep2.addEventListener('click', () => showStep(2));
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('highlight');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('highlight');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+        }
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+                dropZone.querySelector('p').textContent = `Selected file: ${fileName}`;
+            }
+        });
+    </script>
+</body>
+</html>
